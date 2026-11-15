@@ -1,5 +1,7 @@
 # AI-Based Resume Matching & Candidate Ranking System
 
+[**Open the live Resume Ranking System →**](https://resume-ranking-system-rachit-ncj1.onrender.com)
+
 An explainable full-stack application that parses batches of PDF and DOCX resumes, compares them with a job description, and presents recruiters with a transparent candidate ranking. The repository and folder are named `resume-ranking-system` so this assignment remains separate from the original **AI Resume Analyzer & Career Development Platform** mini-project.
 
 > **Role terminology:** the assignment does not establish that every role is an internship. This project therefore uses neutral terms such as *role*, *job description*, and *candidate*. It works for internships, graduate roles, and experienced positions.
