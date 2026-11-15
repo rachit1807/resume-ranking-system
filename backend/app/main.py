@@ -2,19 +2,30 @@ from __future__ import annotations
 
 import asyncio
 import re
+from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from .database import check_database, init_database, recent_rankings, save_ranking
 from .matcher import match_resume
 from .parser import ResumeParseError, extract_text, infer_name
-from .schemas import CandidateResult, RankingResponse, ScoreBreakdown
+from .schemas import CandidateResult, RankingResponse, RankingRunSummary, ScoreBreakdown
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await asyncio.to_thread(init_database)
+    yield
 
 app = FastAPI(
     title="Resume Ranking API",
     description="Explainable candidate matching for PDF and DOCX resumes.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -26,8 +37,31 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "resume-ranking-api"}
+async def health() -> dict[str, str]:
+    try:
+        await asyncio.to_thread(check_database)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+    return {"status": "ok", "service": "resume-ranking-api", "database": "connected"}
+
+
+@app.get("/api/runs", response_model=list[RankingRunSummary])
+async def ranking_history(limit: int = 10) -> list[RankingRunSummary]:
+    safe_limit = max(1, min(limit, 25))
+    runs = await asyncio.to_thread(recent_rankings, safe_limit)
+    return [
+        RankingRunSummary(
+            id=run.id,
+            created_at=run.created_at,
+            job_title=run.job_title,
+            total_candidates=run.total_candidates,
+            processed=run.processed,
+            failed=run.failed,
+            average_score=run.average_score,
+            candidates=run.candidates,
+        )
+        for run in runs
+    ]
 
 
 def _job_title(description: str) -> str:
@@ -103,7 +137,7 @@ async def rank_candidates(
         raise HTTPException(status_code=422, detail={"message": "No resumes could be parsed.", "warnings": warnings})
 
     average = round(sum(candidate.score for candidate in candidates) / len(candidates), 1)
-    return RankingResponse(
+    response = RankingResponse(
         job_title=_job_title(job_description),
         total_candidates=len(resumes),
         processed=len(candidates),
@@ -112,4 +146,11 @@ async def rank_candidates(
         candidates=candidates,
         warnings=warnings,
     )
+    response.run_id = await asyncio.to_thread(save_ranking, response.model_dump(mode="json"))
+    return response
+
+
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 

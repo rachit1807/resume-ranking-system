@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -27,6 +29,7 @@ class CandidateResult(BaseModel):
 
 
 class RankingResponse(BaseModel):
+    run_id: str | None = None
     job_title: str
     total_candidates: int
     processed: int
@@ -34,4 +37,15 @@ class RankingResponse(BaseModel):
     average_score: float
     candidates: list[CandidateResult]
     warnings: list[str] = []
+
+
+class RankingRunSummary(BaseModel):
+    id: str
+    created_at: datetime
+    job_title: str
+    total_candidates: int
+    processed: int
+    failed: int
+    average_score: float
+    candidates: list[CandidateResult]
 

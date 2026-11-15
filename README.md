@@ -16,6 +16,8 @@ An explainable full-stack application that parses batches of PDF and DOCX resume
 - Candidate detail drawer explaining matched skills, missing skills, and score components
 - CSV export, demo data, accessible controls, loading/error states, and mobile layouts
 - Backend tests for parsing, scoring, validation, and the ranking endpoint
+- PostgreSQL-backed ranking history that stores result summaries without retaining resume files or raw resume text
+- Render Blueprint for an isolated full-stack service and database
 
 The score is decision support, not an automated hiring decision. Recruiters should review the original resume, verify extracted evidence, and avoid using protected personal characteristics.
 
@@ -26,6 +28,7 @@ resume-ranking-system/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py          FastAPI routes and ranking orchestration
+│   │   ├── database.py      PostgreSQL/SQLite ranking history
 │   │   ├── matcher.py       Semantic, skill, experience, and education scoring
 │   │   ├── parser.py        In-memory PDF/DOCX parsing and validation
 │   │   └── schemas.py       API response models
@@ -40,6 +43,8 @@ resume-ranking-system/
 │   │   └── styles.css
 │   ├── package.json
 │   └── vite.config.js
+├── Dockerfile               Reproducible React + FastAPI production image
+├── render.yaml              Isolated Render service and PostgreSQL database
 └── README.md
 ```
 
@@ -60,6 +65,8 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), and the health endpoint is at `/health`.
+
+Local development uses a small SQLite database automatically. Production uses the separate PostgreSQL database supplied through `DATABASE_URL`.
 
 The standard installation uses the included TF-IDF similarity engine. For transformer embeddings, install the optional AI dependencies with `python -m pip install -r requirements-ai.txt`. The matcher then attempts to use `all-MiniLM-L6-v2` from the local cache and falls back safely when the model is unavailable.
 
@@ -96,6 +103,15 @@ npm run build
 
 Every component is normalized to 0–100 before applying its weight. Candidate results expose the full breakdown, detected evidence, matched skills, and skills to verify.
 
+## Deploy on Render
+
+The root `render.yaml` creates exactly two new resources in the Singapore region:
+
+- `resume-ranking-system-rachit`: one FastAPI web service that also serves the compiled React dashboard
+- `resume-ranking-system-db`: one private PostgreSQL database used only by this project
+
+The service receives its internal database connection through Render's managed `DATABASE_URL` reference. Uploaded documents and raw extracted text are never written to the database. Each deployment uses a multi-stage Docker build for the React frontend and Python backend, starts FastAPI on Render's assigned port, and verifies `/health` before receiving traffic.
+
 ## Demo walkthrough
 
 1. Open the dashboard and point out the different visual identity, responsive navigation, and light/dark toggle.
@@ -108,7 +124,7 @@ Every component is normalized to 0–100 before applying its weight. Candidate r
 
 ## Privacy and limitations
 
-- Uploaded files are read in memory for the request and are not written to disk or stored in a database.
+- Uploaded files and raw resume text are read in memory and are not written to disk or stored in a database. Only ranking result summaries are retained.
 - Image-only/scanned PDFs are rejected because this version does not include OCR.
 - Skill detection uses a transparent catalogue and cannot recognize every synonym or specialist technology.
 - Resume formatting can affect PDF text extraction.

@@ -28,6 +28,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [history, setHistory] = useState([])
   const [notice, setNotice] = useState('Demo evidence is loaded. Add resumes to run a live ranking.')
   const fileRef = useRef(null)
 
@@ -35,6 +36,17 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('rankwise-theme', theme)
   }, [theme])
+
+  const refreshHistory = async () => {
+    try {
+      const response = await fetch('/api/runs?limit=8')
+      if (response.ok) setHistory(await response.json())
+    } catch {
+      // The archive remains optional while the frontend is used without the API.
+    }
+  }
+
+  useEffect(() => { refreshHistory() }, [])
 
   const visible = useMemo(() => candidates.filter((candidate) => {
     const matchesQuery = `${candidate.name} ${candidate.matched_skills.join(' ')}`.toLowerCase().includes(query.toLowerCase())
@@ -69,6 +81,7 @@ export default function App() {
       const payload = await response.json()
       if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : 'The resumes could not be analyzed.')
       setCandidates(payload.candidates)
+      await refreshHistory()
       setNotice(`${payload.processed} candidates ranked${payload.failed ? ` · ${payload.failed} files need attention` : ' · all files processed'}.`)
     } catch (error) {
       setNotice(`${error.message} Check that the FastAPI service is running.`)
@@ -116,7 +129,7 @@ export default function App() {
       </section>
     </main>}
 
-    {view === 'rankings' && <main className="archive-page"><header><span className="kicker">SHORTLIST ARCHIVE</span><h1>Current evidence set.</h1><p>One live role, {candidates.length} processed profiles, and every explanation in one place.</p></header><section className="archive-stats"><div><span>AVERAGE FIT</span><b>{summary.average}</b></div><div><span>STRONG MATCHES</span><b>{summary.strong}</b></div><div><span>UNIQUE SKILLS</span><b>{summary.skills}</b></div><button onClick={exportCsv}><Download size={16} />EXPORT SHORTLIST</button></section><div className="archive-grid">{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelected(candidate)}><span>{String(candidate.rank).padStart(2, '0')}</span><div><i>{candidate.initials}</i><h3>{candidate.name}</h3><p>{candidate.summary}</p></div><strong>{candidate.score}<small>/100</small></strong><ArrowRight size={18} /></button>)}</div></main>}
+    {view === 'rankings' && <main className="archive-page"><header><span className="kicker">SHORTLIST ARCHIVE</span><h1>Current evidence set.</h1><p>{history.length ? `${history.length} saved ranking runs` : 'Demo evidence'} · {candidates.length} visible profiles · every explanation in one place.</p></header>{history.length > 0 && <section className="run-history"><span>SAVED RUNS</span><div>{history.map((run) => <button key={run.id} onClick={() => { setCandidates(run.candidates); setNotice(`Loaded saved ranking for ${run.job_title}.`) }}><small>{new Date(run.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</small><b>{run.job_title}</b><em>{run.processed} profiles · {Math.round(run.average_score)} avg.</em></button>)}</div></section>}<section className="archive-stats"><div><span>AVERAGE FIT</span><b>{summary.average}</b></div><div><span>STRONG MATCHES</span><b>{summary.strong}</b></div><div><span>UNIQUE SKILLS</span><b>{summary.skills}</b></div><button onClick={exportCsv}><Download size={16} />EXPORT SHORTLIST</button></section><div className="archive-grid">{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelected(candidate)}><span>{String(candidate.rank).padStart(2, '0')}</span><div><i>{candidate.initials}</i><h3>{candidate.name}</h3><p>{candidate.summary}</p></div><strong>{candidate.score}<small>/100</small></strong><ArrowRight size={18} /></button>)}</div></main>}
 
     {view === 'method' && <main className="notes-page"><header><span className="kicker">SCORING NOTES / READ BEFORE USE</span><h1>Visible inputs.<br />Auditable reasoning.</h1><p>The ranking is a structured comparison of resume text and a supplied role description. It is not a prediction of job performance.</p></header><section className="notes-grid">{scoreWeights.map(([label, weight, note], index) => <article key={label}><span>0{index + 1}</span><b>{weight}%</b><h2>{label}</h2><p>{note}. This component is normalized to a 0–100 score before its weight is applied.</p></article>)}</section><section className="guardrail"><ShieldCheck size={25} /><div><span>REVIEW GUARDRAIL</span><h2>Keep the person in the process.</h2><p>Review original resumes, validate parsed facts, accommodate non-standard career paths, and never use this score as the sole basis for rejection.</p></div><button onClick={() => setView('workbench')}>RETURN TO WORKBENCH <ArrowRight size={16} /></button></section></main>}
     <CandidateDrawer candidate={selected} onClose={() => setSelected(null)} />
