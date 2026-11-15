@@ -11,7 +11,7 @@ FROM python:3.13.5-slim-bookworm AS python-builder
 WORKDIR /build
 ENV PIP_NO_CACHE_DIR=1
 COPY backend/requirements.txt ./requirements.txt
-RUN pip wheel --no-deps --wheel-dir /wheels -r requirements.txt
+RUN pip wheel --wheel-dir /wheels -r requirements.txt
 
 FROM python:3.13.5-slim-bookworm AS runner
 WORKDIR /app
@@ -20,7 +20,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN useradd --create-home --uid 1001 appuser
 COPY --from=python-builder /wheels /wheels
 COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels -r ./backend/requirements.txt && rm -rf /wheels
 COPY backend/app ./backend/app
 COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 RUN chown -R appuser:appuser /app
