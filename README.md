@@ -54,64 +54,53 @@ Every component is normalized to a **0–100** score before its weight is applie
 | **Experience** | **15%** | ██████░░░░░░░░░░░░░░ | Stated years compared with the role requirement |
 | **Education** | **5%** | ██░░░░░░░░░░░░░░░░░░ | Education level, only when the role specifies one |
 
-~~~mermaid
-xychart-beta
-    title "Candidate score weights"
-    x-axis [Semantic, Skills, Experience, Education]
-    y-axis "Weight (%)" 0 --> 50
-    bar [45, 35, 15, 5]
-~~~
+### Weight distribution
+
+```text
+Semantic alignment  ██████████████████  45%
+Skills coverage     ██████████████      35%
+Experience          ██████              15%
+Education           ██                   5%
+```
 
 ## 🔄 Ranking workflow
 
-~~~mermaid
-flowchart LR
-    A[📝 Add job description] --> B[📄 Upload PDF/DOCX resumes]
-    B --> C[🔍 Validate and extract text]
-    C --> D[🧠 Calculate semantic fit]
-    C --> E[🛠️ Detect skills]
-    C --> F[💼 Read experience]
-    C --> G[🎓 Read education]
-    D --> H[⚖️ Weighted score]
-    E --> H
-    F --> H
-    G --> H
-    H --> I[🏆 Ranked shortlist]
-    I --> J[🔎 Human evidence review]
-    I --> K[🗂️ Save result summary]
-~~~
+```mermaid
+graph LR
+    A["Add job description"] --> B["Upload resumes"]
+    B --> C["Extract text"]
+    C --> D["Analyse candidate"]
+    D --> E["Calculate score"]
+    E --> F["Rank candidates"]
+    F --> G["Review evidence"]
+    F --> H["Save summary"]
+```
+
+The analysis stage measures semantic alignment, skills coverage, experience, and education before combining them into the final score.
 
 ## 🏗️ System architecture
 
-~~~mermaid
-flowchart TB
-    U[👤 Recruiter] -->|HTTPS| UI[⚛️ React + Vite dashboard]
-    UI -->|Same-origin API| API[⚡ FastAPI service]
-    API --> PARSER[📄 PDF / DOCX parser]
-    API --> MATCHER[🧠 Explainable matching engine]
-    PARSER --> MATCHER
-    MATCHER --> DB[(🐘 PostgreSQL archive)]
-    API --> UI
+```mermaid
+graph TD
+    A["Recruiter"] --> B["React dashboard"]
+    B --> C["FastAPI service"]
+    C --> D["PDF and DOCX parser"]
+    D --> E["Explainable matching engine"]
+    E --> F["PostgreSQL archive"]
+    E --> C
+    C --> B
+```
 
-    subgraph deployment[Render — Singapore]
-        UI
-        API
-        PARSER
-        MATCHER
-        DB
-    end
-~~~
+The complete application is deployed as an isolated Render service in Singapore, with its own private PostgreSQL database.
 
 ### Score contribution
 
-~~~mermaid
-pie showData
-    title Score contribution
-    "Semantic alignment" : 45
-    "Skills coverage" : 35
-    "Experience" : 15
-    "Education" : 5
-~~~
+| Score component | Contribution | Relative share |
+| --- | ---: | :--- |
+| Semantic alignment | 45% | ██████████████████ |
+| Skills coverage | 35% | ██████████████ |
+| Experience | 15% | ██████ |
+| Education | 5% | ██ |
 
 ## 🖥️ Dashboard experience
 
@@ -225,19 +214,13 @@ The checked-in **render.yaml** provisions two project-specific resources in the 
 1. **Docker web service** — builds React, packages FastAPI, and serves both from one public origin.
 2. **Private PostgreSQL database** — receives connections only through Render’s private network.
 
-~~~mermaid
-sequenceDiagram
-    participant G as GitHub main
-    participant R as Render Build
-    participant W as Web Service
-    participant P as PostgreSQL
-    G->>R: Push commit
-    R->>R: Build React + Python image
-    R->>W: Deploy immutable image
-    W->>P: Verify database connection
-    W-->>R: GET /health → 200
-    R-->>G: Deployment live
-~~~
+| Stage | Action | Verification |
+| :---: | --- | --- |
+| 1 | Push the latest commit to GitHub | Render detects the change |
+| 2 | Build the React frontend and Python service | Production image completes successfully |
+| 3 | Deploy the immutable web-service image | Service starts on the assigned port |
+| 4 | Connect to the private PostgreSQL database | Database readiness check passes |
+| 5 | Publish the release | `/health` returns `200` |
 
 ## 🔐 Privacy, fairness, and limitations
 
